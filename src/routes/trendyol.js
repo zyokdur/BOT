@@ -825,11 +825,9 @@ router.get('/trend-discovery', async (req, res) => {
         
         if (query) {
             // Tek bir arama terimi ile arama yap
-            const [searchResult, suggestions] = await Promise.all([
-                trendyolSearch.searchProducts(query, 10),
-                trendyolSearch.getSearchSuggestions(query)
-            ]);
-            
+            const searchResult = await trendyolSearch.searchProducts(query, 10);
+            const suggestions = trendyolSearch.extractKeywordsFromProducts(searchResult.products || [], query);
+
             results.push({
                 query: query,
                 products: searchResult.products || [],
@@ -840,10 +838,8 @@ router.get('/trend-discovery', async (req, res) => {
             // Birden fazla trend arama
             const searchPromises = trendQueries.slice(0, 5).map(async q => {
                 try {
-                    const [searchResult, suggestions] = await Promise.all([
-                        trendyolSearch.searchProducts(q, 5),
-                        trendyolSearch.getSearchSuggestions(q)
-                    ]);
+                    const searchResult = await trendyolSearch.searchProducts(q, 5);
+                    const suggestions = trendyolSearch.extractKeywordsFromProducts(searchResult.products || [], q);
                     return {
                         query: q,
                         products: searchResult.products || [],
@@ -877,7 +873,7 @@ Bu verilerden yola çıkarak kısaca analiz et (Türkçe, 3-4 cümle):
 3. Yeni satıcılar için fırsat var mı?`;
                 
                 const response = await require('axios').post(
-                    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+                    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
                     { contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 300 } },
                     { timeout: 15000, headers: { 'Content-Type': 'application/json' } }
                 );
@@ -908,8 +904,9 @@ router.get('/search-suggest', async (req, res) => {
     try {
         const { q } = req.query;
         if (!q || q.length < 2) return res.json({ success: true, data: [] });
-        
-        const suggestions = await trendyolSearch.getSearchSuggestions(q);
+
+        const searchResult = await trendyolSearch.searchProducts(q, 10);
+        const suggestions = trendyolSearch.extractKeywordsFromProducts(searchResult.products || [], q);
         res.json({ success: true, data: suggestions });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });

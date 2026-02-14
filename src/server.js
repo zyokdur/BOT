@@ -1,5 +1,19 @@
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
+// Yakalanmayan hataları logla ama sunucuyu çökertme
+process.on('uncaughtException', (err) => {
+    console.error('UNCAUGHT EXCEPTION:', err.message);
+    console.error(err.stack);
+});
+process.on('unhandledRejection', (reason) => {
+    console.error('UNHANDLED REJECTION:', reason?.message || reason);
+});
+
+// Proje kök dizinine git (CWD farklı olabilir)
+const projectRoot = path.join(__dirname, '..');
+process.chdir(projectRoot);
+
+require('dotenv').config({ path: path.join(projectRoot, '.env') });
 const express = require('express');
 const cors = require('cors');
 

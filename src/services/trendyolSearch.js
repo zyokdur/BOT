@@ -1,12 +1,11 @@
 const axios = require('axios');
 
 /**
- * Trendyol Public Search & Suggest API
- * Trendyol'un arama önerileri ve arama sonuçlarını çeker
+ * Trendyol Public Search API
+ * Çalışan endpoint: apigw.trendyol.com
  */
 
-const SUGGEST_URL = 'https://public.trendyol.com/discovery-web-searchgw-service/v2/api/suggestion';
-const SEARCH_URL = 'https://public.trendyol.com/discovery-web-searchgw-service/v2/api/infinite-scroll';
+const SEARCH_URL = 'https://apigw.trendyol.com/discovery-web-searchgw-service/v2/api/infinite-scroll/sr';
 
 const HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -23,184 +22,171 @@ const HEADERS = {
 };
 
 /**
- * Trendyol arama önerilerini getir (autocomplete)
- * Kullanıcı "Askı Tutucu" yazdığında çıkan öneriler
- */
-async function getSearchSuggestions(query) {
-    if (!query || query.trim().length < 2) return [];
-    
-    try {
-        const response = await axios.get(SUGGEST_URL, {
-            params: { q: query.trim(), culture: 'tr-TR' },
-            headers: HEADERS,
-            timeout: 10000
-        });
-        
-        const data = response.data;
-        const suggestions = [];
-        
-        // Trendyol suggestion API farklı formatlar dönebilir
-        if (data?.result?.suggestions) {
-            data.result.suggestions.forEach(s => {
-                if (s.text) suggestions.push(s.text);
-            });
-        }
-        if (data?.result?.products) {
-            // Önerilen ürünlerden anahtar kelimeleri çıkar
-        }
-        if (data?.suggestions) {
-            data.suggestions.forEach(s => {
-                if (typeof s === 'string') suggestions.push(s);
-                else if (s.text) suggestions.push(s.text);
-            });
-        }
-        // Düz array formatı
-        if (Array.isArray(data)) {
-            data.forEach(item => {
-                if (typeof item === 'string') suggestions.push(item);
-                else if (item?.text) suggestions.push(item.text);
-            });
-        }
-        
-        return [...new Set(suggestions)].slice(0, 20);
-    } catch (error) {
-        console.error('Trendyol suggest hatasi:', error.message);
-        return [];
-    }
-}
-
-/**
  * Trendyol'da ürün ara ve ilk N sonucu döndür
- * Gerçek Trendyol arama sonuçları — organik sıralama
  */
 async function searchProducts(query, limit = 10) {
-    if (!query || query.trim().length < 2) return [];
-    
+    if (!query || query.trim().length < 2) return { products: [], totalCount: 0, query: query || '' };
+
     try {
-        // Trendyol search API'nin slug formatı: "askı tutucu" -> "aski-tutucu"
-        const slug = query.trim()
-            .toLowerCase()
-            .replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ü/g, 'u')
-            .replace(/ş/g, 's').replace(/ç/g, 'c').replace(/ğ/g, 'g')
-            .replace(/İ/g, 'i').replace(/Ö/g, 'o').replace(/Ü/g, 'u')
-            .replace(/Ş/g, 's').replace(/Ç/g, 'c').replace(/Ğ/g, 'g')
-            .replace(/[^a-z0-9\s-]/g, '')
-            .replace(/\s+/g, '-')
-            .replace(/-+/g, '-');
-        
-        const response = await axios.get(`${SEARCH_URL}/${slug}`, {
+        const response = await axios.get(SEARCH_URL, {
             params: {
                 q: query.trim(),
-                qt: query.trim(),
-                st: query.trim(),
-                os: 1,
                 pi: 1,
                 culture: 'tr-TR',
-                userGenderId: 0,
-                pId: 0,
-                scoringAlgorithmId: 2,
-                categoryRelevancyEnabled: false,
-                isLegalRequirementConfirmed: false,
-                searchStrategyType: 'DEFAULT',
-                productStampType: 'TypeA'
+                storefrontId: 1,
+                pId: 0
             },
             headers: HEADERS,
             timeout: 15000
         });
-        
+
         const data = response.data;
         const products = [];
-        
+
         if (data?.result?.products) {
             data.result.products.slice(0, limit).forEach(p => {
                 products.push({
                     id: p.id,
                     name: p.name || '',
                     brand: p.brand?.name || '',
-                    price: p.price?.sellingPrice || p.price?.originalPrice || 0,
+                    price: p.price?.sellingPrice || p.price?.discountedPrice || 0,
                     originalPrice: p.price?.originalPrice || 0,
+                    discountRatio: p.price?.discountRatio || 0,
                     categoryName: p.categoryName || '',
                     categoryHierarchy: p.categoryHierarchy || '',
-                    merchantName: p.merchantName || '',
                     ratingScore: p.ratingScore?.averageRating || 0,
                     ratingCount: p.ratingScore?.totalCount || 0,
-                    favoriteCount: p.favoriteCount || 0,
+                    favoriteCount: parseInt(p.socialProof?.favoriteCount?.count) || 0,
                     url: p.url ? `https://www.trendyol.com${p.url}` : '',
-                    imageUrl: p.images?.[0] ? `https://cdn.dsmcdn.com/${p.images[0]}` : ''
+                    imageUrl: p.images?.[0] ? `https://cdn.dsmcdn.com${p.images[0]}` : '',
+                    merchantName: p.merchantName || '',
+                    freeCargo: p.freeCargo || false
                 });
             });
         }
-        
-        // Toplam sonuç sayısı
+
         const totalCount = data?.result?.totalCount || products.length;
-        
-        return {
-            products,
-            totalCount,
-            query: query.trim()
-        };
+
+        return { products, totalCount, query: query.trim() };
     } catch (error) {
         console.error('Trendyol search hatasi:', error.message);
-        // Cloudflare engeli veya DNS hatası durumunda boş döndür
         return { products: [], totalCount: 0, query: query.trim() };
     }
 }
 
 /**
+ * Arama sonuçlarındaki ürün başlıklarından anahtar kelime önerileri çıkar
+ * (suggestion API çalışmadığı için bu yöntem kullanılıyor)
+ */
+function extractKeywordsFromProducts(products, originalQuery) {
+    const stopWords = new Set(['ve', 'ile', 'için', 'bir', 'bu', 'da', 'de', 'den', 'dan',
+        'adet', 'set', 'seti', 'lü', 'li', 'lu', 'lı', 'x', 'cm', 'mm', 'ml', 'gr', 'kg',
+        'mt', 'lt', 'the', 'of', 'and', 'size', 'one', 'olan', 'olarak', 'en', 'al',
+        'çok', 'yeni', 'özel', 'model', 'kalite', 'kaliteli']);
+
+    const wordFreq = {};
+    const bigramFreq = {};
+
+    products.forEach(p => {
+        if (!p.name) return;
+        const words = p.name.split(/[\s,\-\/\+\(\)]+/)
+            .filter(w => w.length > 2 && !stopWords.has(w.toLowerCase()) && isNaN(w));
+
+        const seen = new Set();
+        words.forEach(w => {
+            const wl = w.toLowerCase();
+            if (!seen.has(wl)) {
+                wordFreq[wl] = (wordFreq[wl] || 0) + 1;
+                seen.add(wl);
+            }
+        });
+
+        // Bigram'lar (2'li kelime grupları)
+        for (let i = 0; i < words.length - 1; i++) {
+            const bg = words[i].toLowerCase() + ' ' + words[i + 1].toLowerCase();
+            if (!stopWords.has(words[i].toLowerCase()) && !stopWords.has(words[i + 1].toLowerCase())) {
+                bigramFreq[bg] = (bigramFreq[bg] || 0) + 1;
+            }
+        }
+    });
+
+    // Tekil kelimeler (en az 2 üründe geçenler)
+    const keywords = Object.entries(wordFreq)
+        .filter(([, count]) => count >= 2)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 25)
+        .map(([word]) => word);
+
+    // Bigram'lar (en az 2 üründe geçenler)
+    const bigrams = Object.entries(bigramFreq)
+        .filter(([, count]) => count >= 2)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([bg]) => bg);
+
+    // Birleştir: önce bigram'lar sonra tekil kelimeler
+    const suggestions = [...new Set([...bigrams, ...keywords])].slice(0, 20);
+
+    return suggestions;
+}
+
+/**
  * Bir ürün başlığından arama yaparak Trendyol'daki rakipleri bul
- * Başlıktaki anahtar kelimeleri kullanarak arama yapar
  */
 async function findCompetitorsFromSearch(productTitle, categoryName, limit = 5) {
-    if (!productTitle) return { products: [], keywords: [], suggestions: [] };
-    
+    if (!productTitle) return { products: [], keywords: [], searchQuery: '' };
+
     // Başlıktan anlamlı arama terimi oluştur
     const stopWords = new Set(['ve', 'ile', 'için', 'bir', 'bu', 'da', 'de', 'den', 'dan',
         'adet', 'set', 'seti', 'lü', 'li', 'lu', 'lı', 'x', 'cm', 'mm', 'ml', 'gr', 'kg',
         'mt', 'lt', 'the', 'of', 'and', 'size', 'one', 'olan', 'olarak']);
-    
+
     const titleWords = productTitle.split(/[\s,\-\/\+\(\)]+/)
         .filter(w => w.length > 2 && !stopWords.has(w.toLowerCase()) && isNaN(w));
-    
-    // En anlamlı 3-4 kelimeyi seç (ilk kelimeler genellikle ürün türünü tanımlar)
+
+    // En anlamlı 3-4 kelimeyi seç
     const searchTerms = titleWords.slice(0, 4).join(' ');
-    
-    // Paralel olarak arama ve önerileri çek
-    const [searchResult, suggestions] = await Promise.all([
-        searchProducts(searchTerms, limit),
-        getSearchSuggestions(searchTerms)
-    ]);
-    
-    // Ek öneriler: Kategori adıyla da arama yap
-    let categorySuggestions = [];
+
+    // Arama yap
+    const searchResult = await searchProducts(searchTerms, Math.max(limit, 10));
+
+    // Arama sonuçlarından anahtar kelime önerileri çıkar
+    const keywords = extractKeywordsFromProducts(searchResult.products, searchTerms);
+
+    // Ek arama: Kategori adıyla da arama yap
+    let categoryKeywords = [];
     if (categoryName) {
         const catWords = categoryName.split(/[\s\/\-\&>]+/).filter(w => w.length > 2);
-        const catSearch = catWords.slice(-2).join(' '); // Son 2 kelime genellikle spesifik kategori
-        if (catSearch && catSearch !== searchTerms) {
-            categorySuggestions = await getSearchSuggestions(catSearch);
+        const catSearch = catWords.slice(-2).join(' ');
+        if (catSearch && catSearch.toLowerCase() !== searchTerms.toLowerCase()) {
+            try {
+                const catResult = await searchProducts(catSearch, 10);
+                categoryKeywords = extractKeywordsFromProducts(catResult.products, catSearch);
+            } catch (err) {
+                // Kategori araması opsiyonel
+            }
         }
     }
-    
-    const allSuggestions = [...new Set([...suggestions, ...categorySuggestions])].slice(0, 15);
-    
+
+    const allKeywords = [...new Set([...keywords, ...categoryKeywords])].slice(0, 20);
+
     return {
-        products: searchResult.products || [],
+        products: searchResult.products.slice(0, limit),
         totalCount: searchResult.totalCount || 0,
-        keywords: allSuggestions,
+        keywords: allKeywords,
         searchQuery: searchTerms
     };
 }
 
 /**
  * Arama sonuçlarından anahtar kelime analizi yap
- * Trendyol'daki en çok aranan ve başarılı ürünlerin başlıklarını analiz et
  */
 function analyzeSearchKeywords(searchProducts, suggestions) {
     const wordFreq = {};
     const stopWords = new Set(['ve', 'ile', 'için', 'bir', 'bu', 'da', 'de', 'den', 'dan',
         'adet', 'set', 'seti', 'lü', 'li', 'lu', 'lı', 'x', 'olan', 'olarak',
         'the', 'of', 'and', 'size', 'one', 'cm', 'mm', 'ml', 'gr', 'kg', 'mt', 'lt']);
-    
-    // Arama sonuçlarındaki ürün başlıklarından kelime frekansı
+
     searchProducts.forEach(p => {
         if (!p.name) return;
         const words = p.name.split(/[\s,\-\/\+\(\)]+/)
@@ -210,17 +196,16 @@ function analyzeSearchKeywords(searchProducts, suggestions) {
             wordFreq[wl] = (wordFreq[wl] || 0) + 1;
         });
     });
-    
-    // Önerilerden gelen kelimeleri de ekle (ağırlıklı)
-    suggestions.forEach(s => {
+
+    (suggestions || []).forEach(s => {
         const words = s.split(/[\s,\-\/\+\(\)]+/)
             .filter(w => w.length > 2 && !stopWords.has(w.toLowerCase()) && isNaN(w));
         words.forEach(w => {
             const wl = w.toLowerCase();
-            wordFreq[wl] = (wordFreq[wl] || 0) + 2; // Öneriler daha ağırlıklı
+            wordFreq[wl] = (wordFreq[wl] || 0) + 2;
         });
     });
-    
+
     return Object.entries(wordFreq)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 20)
@@ -228,8 +213,8 @@ function analyzeSearchKeywords(searchProducts, suggestions) {
 }
 
 module.exports = {
-    getSearchSuggestions,
     searchProducts,
     findCompetitorsFromSearch,
-    analyzeSearchKeywords
+    analyzeSearchKeywords,
+    extractKeywordsFromProducts
 };
