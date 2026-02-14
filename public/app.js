@@ -9,6 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
     testConnection();
     loadSavedCosts();
     initSalesDatePicker();
+    // Otomatik ürün yükleme
+    loadProducts();
 });
 
 // ========== NAVIGATION ==========
@@ -240,6 +242,15 @@ function renderResearchTabs(research, product) {
                     <span><i class="fas fa-fingerprint"></i> ${ta.uniqueWordCount} benzersiz</span>
                     <span><i class="fas fa-store"></i> ${ta.competitorTitleCount} rakip başlık</span>
                 </div>
+                ${ta.scoreBreakdown ? `<div class="score-breakdown">
+                    ${ta.scoreBreakdown.map(b => `<div class="breakdown-row">
+                        <span class="breakdown-label">${b.label}</span>
+                        <div class="breakdown-bar-container">
+                            <div class="breakdown-bar" style="width:${b.max > 0 ? (b.score / b.max * 100) : 0}%;background:${b.score >= b.max * 0.7 ? 'var(--green)' : b.score >= b.max * 0.4 ? 'var(--orange)' : 'var(--red)'}"></div>
+                        </div>
+                        <span class="breakdown-score">${b.score}/${b.max}</span>
+                    </div>`).join('')}
+                </div>` : ''}
             </div>
         </div>
     </div>`;
@@ -254,8 +265,8 @@ function renderResearchTabs(research, product) {
     if (ta.suggestedTitle && ta.suggestedTitle !== ta.currentTitle) {
         html += `<div class="strategy-section">
             <h3><i class="fas fa-magic"></i> Önerilen Başlık</h3>
-            <div class="title-box suggested">${ta.suggestedTitle}</div>
-            <button class="btn btn-sm" style="margin-top:8px;background:var(--primary-bg);color:var(--primary-light);border:1px solid var(--primary-border);" onclick="navigator.clipboard.writeText('${ta.suggestedTitle.replace(/'/g, "\\'")}');showToast('Başlık kopyalandı!','success')">
+            <div class="title-box suggested" id="suggestedTitleText">${ta.suggestedTitle}</div>
+            <button class="btn btn-sm" style="margin-top:8px;background:var(--primary-bg);color:var(--primary-light);border:1px solid var(--primary-border);" onclick="copySuggestedTitle()">
                 <i class="fas fa-copy"></i> Kopyala
             </button>
         </div>`;
@@ -348,6 +359,11 @@ function renderResearchTabs(research, product) {
                     <div class="s-value orange">${fmtMoney(ca.priceStats.min)} - ${fmtMoney(ca.priceStats.max)}</div>
                     <div class="s-desc">${ca.priceStats.count} ürün arasında</div>
                 </div>
+                ${ca.discountStats ? `<div class="strategy-card">
+                    <div class="s-title">İndirimli Ürünler</div>
+                    <div class="s-value green">%${ca.discountStats.percent}</div>
+                    <div class="s-desc">${ca.discountStats.count} ürün, ort. %${ca.discountStats.avgDiscount} indirim</div>
+                </div>` : ''}
             </div>
         </div>`;
 
@@ -383,8 +399,19 @@ function renderResearchTabs(research, product) {
                         ${ca.recommendation.icon} Fiyat Önerisi
                     </div>
                     <div class="c-detail">${ca.recommendation.text}</div>
+                    ${ca.recommendation.details ? `<div class="c-detail" style="margin-top:6px;font-size:12px;opacity:0.8;">${ca.recommendation.details}</div>` : ''}
                     ${ca.recommendation.suggestedPrice !== research.productPrice ?
                         `<div style="margin-top:10px;"><span class="badge badge-blue">Önerilen: ${fmtMoney(ca.recommendation.suggestedPrice)}</span></div>` : ''}
+                </div>
+            </div>`;
+        }
+
+        // Kargo Baremi Optimizasyonu
+        if (ca.shippingOptimization) {
+            html += `<div class="strategy-section">
+                <div class="coupon-box" style="border-color:var(--orange);border-color:rgba(255,169,77,0.4);background:var(--orange-bg);">
+                    <div class="c-title" style="color:var(--orange);"><i class="fas fa-truck"></i> ${ca.shippingOptimization.text}</div>
+                    <div class="c-detail">Hedef fiyat: <strong>${fmtMoney(ca.shippingOptimization.targetPrice)}</strong> → Kargo tasarrufu: <strong>${fmtMoney(ca.shippingOptimization.saving)}</strong></div>
                 </div>
             </div>`;
         }
@@ -455,6 +482,24 @@ function renderResearchTabs(research, product) {
 function closeStrategy(event) {
     if (event && event.target !== event.currentTarget) return;
     document.getElementById('strategyModal').innerHTML = '';
+}
+
+function copySuggestedTitle() {
+    const el = document.getElementById('suggestedTitleText');
+    if (el) {
+        navigator.clipboard.writeText(el.textContent).then(() => {
+            showToast('Başlık kopyalandı!', 'success');
+        }).catch(() => {
+            // Fallback
+            const range = document.createRange();
+            range.selectNode(el);
+            window.getSelection().removeAllRanges();
+            window.getSelection().addRange(range);
+            document.execCommand('copy');
+            window.getSelection().removeAllRanges();
+            showToast('Başlık kopyalandı!', 'success');
+        });
+    }
 }
 
 // ========== MALİYET GÜNCELLEME ==========

@@ -641,7 +641,7 @@ body {
 
 .strategy-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
     gap: 12px;
 }
 
@@ -1202,4 +1202,51 @@ body {
     .score-display { flex-direction: column; text-align: center; }
     .score-meta { justify-content: center; }
     .modal-tabs { overflow-x: auto; }
+    .strategy-grid { grid-template-columns: 1fr !important; }
+}
+
+/* ===== SKOR BREAKDOWN ===== */
+.score-breakdown {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.breakdown-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+}
+
+.breakdown-label {
+    width: 110px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.breakdown-bar-container {
+    flex: 1;
+    height: 6px;
+    background: var(--bg-input);
+    border-radius: 3px;
+    overflow: hidden;
+    min-width: 60px;
+}
+
+.breakdown-bar {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.6s ease;
+}
+
+.breakdown-score {
+    width: 40px;
+    text-align: right;
+    color: var(--text);
+    font-weight: 600;
+    font-size: 10px;
+    flex-shrink: 0;
 }
