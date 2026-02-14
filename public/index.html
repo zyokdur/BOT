@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trendyol Finansal Analiz</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>Trendyol Kârlılık Analizi</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -14,28 +14,23 @@
         <aside class="sidebar">
             <div class="logo">
                 <i class="fas fa-chart-line"></i>
-                <span>Trendyol Analiz</span>
+                <span>Kârlılık Analizi</span>
             </div>
             <nav class="nav-menu">
                 <a href="#" class="nav-item active" data-page="dashboard">
-                    <i class="fas fa-home"></i>
-                    <span>Dashboard</span>
+                    <i class="fas fa-th-large"></i><span>Dashboard</span>
                 </a>
                 <a href="#" class="nav-item" data-page="products">
-                    <i class="fas fa-box"></i>
-                    <span>Ürünler</span>
+                    <i class="fas fa-box-open"></i><span>Ürünler</span>
+                </a>
+                <a href="#" class="nav-item" data-page="sales">
+                    <i class="fas fa-receipt"></i><span>Satışlar</span>
                 </a>
                 <a href="#" class="nav-item" data-page="calculator">
-                    <i class="fas fa-calculator"></i>
-                    <span>Fiyat Hesapla</span>
-                </a>
-                <a href="#" class="nav-item" data-page="costs">
-                    <i class="fas fa-tags"></i>
-                    <span>Maliyet Girişi</span>
+                    <i class="fas fa-calculator"></i><span>Fiyat Hesapla</span>
                 </a>
                 <a href="#" class="nav-item" data-page="settings">
-                    <i class="fas fa-cog"></i>
-                    <span>Ayarlar</span>
+                    <i class="fas fa-sliders-h"></i><span>Ayarlar</span>
                 </a>
             </nav>
             <div class="sidebar-footer">
@@ -46,133 +41,147 @@
             </div>
         </aside>
 
-        <!-- Main Content -->
+        <!-- Main -->
         <main class="main-content">
-            <!-- Dashboard Page -->
+
+            <!-- ========== DASHBOARD ========== -->
             <div class="page active" id="dashboard-page">
                 <div class="page-header">
-                    <h1>Dashboard</h1>
-                    <button class="btn btn-primary" onclick="refreshData()">
-                        <i class="fas fa-sync-alt"></i> Yenile
+                    <div>
+                        <h1>Dashboard</h1>
+                        <p class="subtitle">Mağaza genel durumu</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="loadProducts()">
+                        <i class="fas fa-download"></i> Verileri Çek
                     </button>
                 </div>
 
                 <div class="stats-grid">
                     <div class="stat-card">
-                        <div class="stat-icon green">
-                            <i class="fas fa-check-circle"></i>
-                        </div>
-                        <div class="stat-info">
-                            <span class="stat-value" id="profitableCount">-</span>
-                            <span class="stat-label">Kârlı Ürün</span>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon red">
-                            <i class="fas fa-times-circle"></i>
-                        </div>
-                        <div class="stat-info">
-                            <span class="stat-value" id="unprofitableCount">-</span>
-                            <span class="stat-label">Zararlı Ürün</span>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon orange">
-                            <i class="fas fa-minus-circle"></i>
-                        </div>
-                        <div class="stat-info">
-                            <span class="stat-value" id="breakEvenCount">-</span>
-                            <span class="stat-label">Başabaş</span>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon blue">
-                            <i class="fas fa-boxes"></i>
-                        </div>
+                        <div class="stat-icon blue"><i class="fas fa-boxes-stacked"></i></div>
                         <div class="stat-info">
                             <span class="stat-value" id="totalProducts">-</span>
-                            <span class="stat-label">Toplam Ürün</span>
+                            <span class="stat-label">Aktif Ürün</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purple"><i class="fas fa-tag"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="withCostCount">-</span>
+                            <span class="stat-label">Maliyetli</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green"><i class="fas fa-arrow-trend-up"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="profitableCount">-</span>
+                            <span class="stat-label">Kârlı</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon red"><i class="fas fa-arrow-trend-down"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="unprofitableCount">-</span>
+                            <span class="stat-label">Zararlı</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange"><i class="fas fa-question"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="noCostCount">-</span>
+                            <span class="stat-label">Maliyet Yok</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green"><i class="fas fa-wallet"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="totalProfit">-</span>
+                            <span class="stat-label">Toplam Kâr</span>
                         </div>
                     </div>
                 </div>
 
                 <div class="card">
-                    <div class="card-header">
-                        <h2>Kargo Ücret Tablosu</h2>
-                    </div>
+                    <div class="card-header"><h2>Kargo & Platform Ücretleri</h2></div>
                     <div class="card-body">
-                        <table class="data-table">
+                        <table class="data-table shipping-table">
                             <thead>
-                                <tr>
-                                    <th>Fiyat Aralığı</th>
-                                    <th>Kargo Ücreti</th>
-                                </tr>
+                                <tr><th>Fiyat Aralığı</th><th>Kargo Ücreti</th></tr>
                             </thead>
                             <tbody>
-                                <tr>
-                                    <td>0 - 149.99 TL</td>
-                                    <td><span class="badge badge-blue">58.50 TL</span></td>
-                                </tr>
-                                <tr>
-                                    <td>150 - 299.99 TL</td>
-                                    <td><span class="badge badge-blue">95.50 TL</span></td>
-                                </tr>
-                                <tr>
-                                    <td>300 - 399.99 TL</td>
-                                    <td><span class="badge badge-blue">110.00 TL</span></td>
-                                </tr>
-                                <tr>
-                                    <td>400+ TL</td>
-                                    <td><span class="badge badge-blue">130.00 TL</span></td>
-                                </tr>
+                                <tr><td>0 - 149.99 ₺</td><td><span class="badge badge-green">58.50 ₺</span></td></tr>
+                                <tr><td>150 - 299.99 ₺</td><td><span class="badge badge-blue">95.50 ₺</span></td></tr>
+                                <tr><td>300 - 399.99 ₺</td><td><span class="badge badge-orange">110.00 ₺</span></td></tr>
+                                <tr><td>400+ ₺</td><td><span class="badge badge-red">130.00 ₺</span></td></tr>
                             </tbody>
                         </table>
-                        <p class="info-text"><i class="fas fa-info-circle"></i> Platform ücreti: <strong>13.80 TL</strong> (her satışta sabit)</p>
+                        <p class="info-text"><i class="fas fa-info-circle"></i> Platform ücreti: <strong>13.80 ₺</strong> (her satışta sabit)</p>
                     </div>
                 </div>
             </div>
 
-            <!-- Products Page -->
+            <!-- ========== ÜRÜNLER ========== -->
             <div class="page" id="products-page">
                 <div class="page-header">
-                    <h1>Ürün Analizi</h1>
+                    <div>
+                        <h1>Ürün Analizi</h1>
+                        <p class="subtitle">Ürüne çift tıklayarak başlık & fiyat araştırması yapabilirsiniz</p>
+                    </div>
                     <button class="btn btn-primary" onclick="loadProducts()">
                         <i class="fas fa-download"></i> Ürünleri Çek
                     </button>
                 </div>
 
                 <div class="card">
-                    <div class="card-header">
-                        <h2>Ürün Listesi</h2>
-                        <div class="search-box">
-                            <i class="fas fa-search"></i>
-                            <input type="text" id="productSearch" placeholder="Ürün ara..." onkeyup="filterProducts()">
+                    <div class="card-header" style="flex-direction:column;align-items:stretch;gap:14px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                            <h2>Aktif Ürünler</h2>
+                            <div class="commission-legend">
+                                <span><span class="badge badge-green" style="font-size:10px;">%X</span> Siparişten</span>
+                                <span><span class="badge badge-blue" style="font-size:10px;">~%X</span> Kategori Ort.</span>
+                                <span><span class="badge badge-orange" style="font-size:10px;">%X</span> Varsayılan</span>
+                            </div>
+                        </div>
+                        <div class="filter-bar">
+                            <div class="search-box">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="productSearch" placeholder="Ürün adı veya barkod ara..." onkeyup="filterProducts()">
+                            </div>
+                            <select class="filter-select" onchange="sortProducts(this.value)">
+                                <option value="">Sırala</option>
+                                <option value="profit-desc">Kâr (Yüksek→Düşük)</option>
+                                <option value="profit-asc">Kâr (Düşük→Yüksek)</option>
+                                <option value="commission">Komisyon</option>
+                                <option value="price">Fiyat</option>
+                            </select>
+                            <select class="filter-select" onchange="filterByCost(this.value)">
+                                <option value="all">Tümü</option>
+                                <option value="with">Maliyetli</option>
+                                <option value="without">Maliyetsiz</option>
+                                <option value="profitable">Kârlı</option>
+                                <option value="unprofitable">Zararlı</option>
+                            </select>
                         </div>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body" style="padding:0;">
                         <div class="table-container">
                             <table class="data-table" id="productsTable">
                                 <thead>
                                     <tr>
                                         <th>Ürün Adı</th>
-                                        <th>Barkod</th>
-                                        <th>Satış Fiyatı</th>
                                         <th>Maliyet</th>
+                                        <th>Satış Fiyatı</th>
                                         <th>Komisyon</th>
                                         <th>Kargo</th>
-                                        <th>Net Gelir</th>
-                                        <th>Kâr/Zarar</th>
-                                        <th>Durum</th>
+                                        <th>Net Kâr</th>
                                         <th>Önerilen Fiyat</th>
                                     </tr>
                                 </thead>
                                 <tbody id="productsBody">
-                                    <tr>
-                                        <td colspan="10" class="empty-state">
-                                            <i class="fas fa-box-open"></i>
-                                            <p>Ürünleri çekmek için butona tıklayın</p>
-                                        </td>
-                                    </tr>
+                                    <tr><td colspan="7" class="empty-state">
+                                        <i class="fas fa-box-open"></i>
+                                        <p>Ürünleri çekmek için butona tıklayın</p>
+                                    </td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -180,40 +189,119 @@
                 </div>
             </div>
 
-            <!-- Calculator Page -->
+            <!-- ========== SATIŞLAR ========== -->
+            <div class="page" id="sales-page">
+                <div class="page-header">
+                    <div>
+                        <h1>Satışlar</h1>
+                        <p class="subtitle">Tarih aralığı seçerek satış detaylarını görüntüleyin</p>
+                    </div>
+                    <div class="date-range-picker">
+                        <input type="date" id="salesStartDate">
+                        <span class="separator">→</span>
+                        <input type="date" id="salesEndDate">
+                        <button class="btn btn-primary btn-sm" onclick="loadSales()">
+                            <i class="fas fa-search"></i> Getir
+                        </button>
+                    </div>
+                </div>
+
+                <div class="sales-stats">
+                    <div class="sales-stat-card count-card">
+                        <div class="stat-mini-icon" style="background:var(--primary-bg);color:var(--primary-light);"><i class="fas fa-shopping-bag"></i></div>
+                        <div class="stat-label">Sipariş / Ürün</div>
+                        <div class="stat-value"><span id="salesOrderCount">-</span> / <span id="salesItemCount">-</span></div>
+                    </div>
+                    <div class="sales-stat-card revenue-card">
+                        <div class="stat-mini-icon" style="background:var(--blue-bg);color:var(--blue);"><i class="fas fa-coins"></i></div>
+                        <div class="stat-label">Toplam Ciro</div>
+                        <div class="stat-value" id="salesTotalRevenue">-</div>
+                    </div>
+                    <div class="sales-stat-card shipping-card">
+                        <div class="stat-mini-icon" style="background:var(--orange-bg);color:var(--orange);"><i class="fas fa-truck"></i></div>
+                        <div class="stat-label">Kargo Gideri</div>
+                        <div class="stat-value" id="salesTotalShipping">-</div>
+                    </div>
+                    <div class="sales-stat-card commission-card">
+                        <div class="stat-mini-icon" style="background:var(--red-bg);color:var(--red);"><i class="fas fa-percent"></i></div>
+                        <div class="stat-label">Komisyon Gideri</div>
+                        <div class="stat-value" id="salesTotalCommission">-</div>
+                    </div>
+                    <div class="sales-stat-card cost-card">
+                        <div class="stat-mini-icon" style="background:var(--yellow-bg);color:var(--yellow);"><i class="fas fa-box"></i></div>
+                        <div class="stat-label">Ürün Maliyeti</div>
+                        <div class="stat-value" id="salesTotalCost">-</div>
+                    </div>
+                    <div class="sales-stat-card profit-card" id="salesProfitCard">
+                        <div class="stat-mini-icon" style="background:var(--green-bg);color:var(--green);"><i class="fas fa-wallet"></i></div>
+                        <div class="stat-label">Cebe Kalan Kâr</div>
+                        <div class="stat-value" id="salesTotalProfit">-</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Sipariş Detayları</h2>
+                    </div>
+                    <div class="card-body" style="padding:0;">
+                        <div class="table-container">
+                            <table class="data-table" id="salesTable">
+                                <thead>
+                                    <tr>
+                                        <th>Tarih</th>
+                                        <th>Ürün</th>
+                                        <th>Adet</th>
+                                        <th>Satış Fiyatı</th>
+                                        <th>Komisyon</th>
+                                        <th>Kargo</th>
+                                        <th>Net Kâr</th>
+                                        <th>Durum</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="salesBody">
+                                    <tr><td colspan="8" class="empty-state">
+                                        <i class="fas fa-receipt"></i>
+                                        <p>Tarih aralığı seçip "Getir" butonuna tıklayın</p>
+                                    </td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========== HESAPLAYICI ========== -->
             <div class="page" id="calculator-page">
                 <div class="page-header">
-                    <h1>Fiyat Hesaplayıcı</h1>
+                    <div>
+                        <h1>Fiyat Hesaplayıcı</h1>
+                        <p class="subtitle">Fiyat analizi ve kârlılık simülasyonu</p>
+                    </div>
                 </div>
 
                 <div class="calculator-grid">
                     <div class="card">
-                        <div class="card-header">
-                            <h2>Fiyat Analizi</h2>
-                        </div>
+                        <div class="card-header"><h2>Değerleri Girin</h2></div>
                         <div class="card-body">
                             <div class="form-group">
-                                <label>Satış Fiyatı (TL)</label>
+                                <label>Satış Fiyatı (₺)</label>
                                 <input type="number" id="calcSalePrice" class="form-input" placeholder="Örn: 299.99">
                             </div>
                             <div class="form-group">
-                                <label>Maliyet Fiyatı (TL)</label>
+                                <label>Alış / Maliyet (₺)</label>
                                 <input type="number" id="calcCostPrice" class="form-input" placeholder="Örn: 150">
                             </div>
                             <div class="form-group">
                                 <label>Komisyon Oranı (%)</label>
-                                <input type="number" id="calcCommission" class="form-input" placeholder="Örn: 15" value="15">
+                                <input type="number" id="calcCommission" class="form-input" placeholder="Örn: 20" value="20">
                             </div>
                             <button class="btn btn-primary btn-block" onclick="calculatePrice()">
                                 <i class="fas fa-calculator"></i> Hesapla
                             </button>
                         </div>
                     </div>
-
                     <div class="card">
-                        <div class="card-header">
-                            <h2>Sonuç</h2>
-                        </div>
+                        <div class="card-header"><h2>Sonuç</h2></div>
                         <div class="card-body" id="calculatorResult">
                             <div class="empty-state">
                                 <i class="fas fa-chart-pie"></i>
@@ -222,129 +310,35 @@
                         </div>
                     </div>
                 </div>
-
-                <div class="card" style="margin-top: 20px;">
-                    <div class="card-header">
-                        <h2>Minimum Fiyat Hesaplayıcı</h2>
-                    </div>
-                    <div class="card-body">
-                        <p class="info-text"><i class="fas fa-lightbulb"></i> Maliyetinize göre kâr edebileceğiniz minimum satış fiyatını öğrenin</p>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Maliyet (TL)</label>
-                                <input type="number" id="minCostPrice" class="form-input" placeholder="Maliyet">
-                            </div>
-                            <div class="form-group">
-                                <label>Komisyon (%)</label>
-                                <input type="number" id="minCommission" class="form-input" placeholder="Komisyon" value="15">
-                            </div>
-                            <div class="form-group">
-                                <label>&nbsp;</label>
-                                <button class="btn btn-secondary" onclick="calculateMinPrice()">
-                                    <i class="fas fa-search-dollar"></i> Minimum Fiyat Bul
-                                </button>
-                            </div>
-                        </div>
-                        <div id="minPriceResult"></div>
-                    </div>
-                </div>
             </div>
 
-            <!-- Costs Page -->
-            <div class="page" id="costs-page">
-                <div class="page-header">
-                    <h1>Maliyet Girişi</h1>
-                </div>
-
-                <div class="card">
-                    <div class="card-header">
-                        <h2>Tek Ürün Maliyet Girişi</h2>
-                    </div>
-                    <div class="card-body">
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Barkod</label>
-                                <input type="text" id="costBarcode" class="form-input" placeholder="Ürün barkodu">
-                            </div>
-                            <div class="form-group">
-                                <label>Maliyet Fiyatı (TL)</label>
-                                <input type="number" id="costPrice" class="form-input" placeholder="Maliyet">
-                            </div>
-                            <div class="form-group">
-                                <label>&nbsp;</label>
-                                <button class="btn btn-primary" onclick="saveCost()">
-                                    <i class="fas fa-save"></i> Kaydet
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 20px;">
-                    <div class="card-header">
-                        <h2>Kaydedilen Maliyetler</h2>
-                        <button class="btn btn-secondary btn-sm" onclick="loadCosts()">
-                            <i class="fas fa-sync-alt"></i> Yenile
-                        </button>
-                    </div>
-                    <div class="card-body">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Barkod</th>
-                                    <th>Maliyet</th>
-                                    <th>İşlem</th>
-                                </tr>
-                            </thead>
-                            <tbody id="costsBody">
-                                <tr>
-                                    <td colspan="3" class="empty-state">
-                                        <i class="fas fa-database"></i>
-                                        <p>Henüz maliyet kaydı yok</p>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Settings Page -->
+            <!-- ========== AYARLAR ========== -->
             <div class="page" id="settings-page">
                 <div class="page-header">
-                    <h1>Ayarlar</h1>
-                </div>
-
-                <div class="card">
-                    <div class="card-header">
-                        <h2>API Bağlantı Testi</h2>
+                    <div>
+                        <h1>Ayarlar</h1>
+                        <p class="subtitle">API bağlantı ve yapılandırma</p>
                     </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><h2>API Bağlantı Testi</h2></div>
                     <div class="card-body">
-                        <p>Trendyol API bağlantınızı test edin</p>
+                        <p style="color:var(--text-dim);font-size:14px;margin-bottom:16px;">Trendyol API bağlantınızı doğrulayın</p>
                         <button class="btn btn-primary" onclick="testConnection()">
                             <i class="fas fa-plug"></i> Bağlantıyı Test Et
                         </button>
-                        <div id="connectionResult" style="margin-top: 15px;"></div>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 20px;">
-                    <div class="card-header">
-                        <h2>Kargo ve Platform Ücretleri</h2>
-                    </div>
-                    <div class="card-body">
-                        <div id="shippingRates">
-                            <p>Yükleniyor...</p>
-                        </div>
+                        <div id="connectionResult" style="margin-top:15px;"></div>
                     </div>
                 </div>
             </div>
+
         </main>
     </div>
 
-    <!-- Toast Container -->
-    <div class="toast-container" id="toastContainer"></div>
+    <!-- Strategy Modal -->
+    <div id="strategyModal"></div>
 
+    <div class="toast-container" id="toastContainer"></div>
     <script src="app.js"></script>
 </body>
 </html>
