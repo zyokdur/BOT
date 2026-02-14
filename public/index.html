@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
@@ -28,6 +28,9 @@
                 </a>
                 <a href="#" class="nav-item" data-page="calculator">
                     <i class="fas fa-calculator"></i><span>Fiyat Hesapla</span>
+                </a>
+                <a href="#" class="nav-item" data-page="trendkesif">
+                    <i class="fas fa-fire"></i><span>Trend Keşif</span>
                 </a>
                 <a href="#" class="nav-item" data-page="settings">
                     <i class="fas fa-sliders-h"></i><span>Ayarlar</span>
@@ -313,6 +316,38 @@
             </div>
 
             <!-- ========== AYARLAR ========== -->
+            <!-- ========== TREND KEŞİF ========== -->
+            <div class="page" id="trendkesif-page">
+                <div class="page-header">
+                    <div>
+                        <h1>🔥 Trend Keşif</h1>
+                        <p class="subtitle">Trendyol'da en çok aranan ürünleri ve trend kelimeleri keşfedin</p>
+                    </div>
+                </div>
+                <div class="card" style="margin-bottom:20px;">
+                    <div class="card-body">
+                        <div style="display:flex;gap:10px;align-items:center;">
+                            <div class="search-box" style="flex:1;">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="trendSearchInput" placeholder="Ürün ara... (örn: Askı Tutucu, Mutfak Organizer)" onkeydown="if(event.key==='Enter') searchTrend()">
+                            </div>
+                            <button class="btn btn-primary" onclick="searchTrend()">
+                                <i class="fas fa-search"></i> Ara
+                            </button>
+                            <button class="btn" style="background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange);" onclick="loadPopularTrends()">
+                                <i class="fas fa-fire"></i> Popüler
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div id="trendResults">
+                    <div class="empty-state">
+                        <i class="fas fa-fire" style="font-size:48px;color:var(--orange);"></i>
+                        <p style="margin-top:16px;">Trendyol'da ürün arayın veya "Popüler" butonuna tıklayın</p>
+                    </div>
+                </div>
+            </div>
+
             <div class="page" id="settings-page">
                 <div class="page-header">
                     <div>
@@ -320,7 +355,7 @@
                         <p class="subtitle">API bağlantı ve yapılandırma</p>
                     </div>
                 </div>
-                <div class="card">
+                <div class="card" style="margin-bottom:20px;">
                     <div class="card-header"><h2>API Bağlantı Testi</h2></div>
                     <div class="card-body">
                         <p style="color:var(--text-dim);font-size:14px;margin-bottom:16px;">Trendyol API bağlantınızı doğrulayın</p>
@@ -328,6 +363,22 @@
                             <i class="fas fa-plug"></i> Bağlantıyı Test Et
                         </button>
                         <div id="connectionResult" style="margin-top:15px;"></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><h2><i class="fas fa-robot"></i> Gemini AI Ayarları</h2></div>
+                    <div class="card-body">
+                        <p style="color:var(--text-dim);font-size:14px;margin-bottom:12px;">
+                            AI destekli başlık önerileri ve ürün analizi için Google Gemini API key girin.
+                            <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--primary-light);">Ücretsiz key al →</a>
+                        </p>
+                        <div id="geminiStatus" style="margin-bottom:12px;"></div>
+                        <div style="display:flex;gap:10px;">
+                            <input type="text" id="geminiApiKey" class="form-input" placeholder="AIzaSy... (Gemini API Key)" style="flex:1;">
+                            <button class="btn btn-primary" onclick="saveGeminiKey()">
+                                <i class="fas fa-save"></i> Kaydet
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

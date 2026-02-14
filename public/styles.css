@@ -1,4 +1,4 @@
-/* =====================================================
+﻿/* =====================================================
    TRENDYOL KARLILIK ANALİZİ - MODERN UI
    Inspired by melontik.com
    ===================================================== */
@@ -1249,4 +1249,47 @@ body {
     font-weight: 600;
     font-size: 10px;
     flex-shrink: 0;
+}
+
+/* ========== AI INSIGHTS ========== */
+.ai-insights {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.ai-insight-card {
+    display: flex;
+    gap: 14px;
+    padding: 14px 18px;
+    background: rgba(77,171,247,0.05);
+    border: 1px solid rgba(77,171,247,0.15);
+    border-radius: 10px;
+    transition: border-color 0.2s;
+}
+
+.ai-insight-card:hover {
+    border-color: rgba(77,171,247,0.35);
+}
+
+.ai-insight-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.ai-insight-content {
+    flex: 1;
+}
+
+.ai-insight-title {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 4px;
+}
+
+.ai-insight-text {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.5;
 }

@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     testConnection();
     loadSavedCosts();
     initSalesDatePicker();
+    checkGeminiStatus();
     // Otomatik ürün yükleme
     loadProducts();
 });
@@ -146,8 +147,9 @@ function renderProductsTable(products) {
 
         const name = p.productName || '-';
         const shortName = name.length > 45 ? name.substring(0, 45) + '...' : name;
+        const safeBarcode = (p.barcode || '').replace(/'/g, "\\'");
 
-        return `<tr class="clickable" ondblclick="openStrategy(${idx})" title="Çift tıkla → Strateji Paneli">
+        return `<tr class="clickable" ondblclick="openStrategyByBarcode('${safeBarcode}')" title="Çift tıkla → Strateji Paneli">
             <td title="${name}"><span style="font-weight:500;">${shortName}</span></td>
             <td><input type="number" class="cost-input" value="${p.costPrice || ''}" placeholder="₺" data-barcode="${p.barcode}" onchange="updateCost(this)"></td>
             <td><strong>${fmtMoney(p.salePrice)}</strong></td>
@@ -160,10 +162,20 @@ function renderProductsTable(products) {
 }
 
 // ========== ÜRÜN STRATEJİ PANELİ (2 Sekmeli) ==========
+// Barkod ile ürün açma (filtreleme/sıralama sonrası doğru ürünü bulur)
+function openStrategyByBarcode(barcode) {
+    const p = productsData.find(prod => prod.barcode === barcode);
+    if (!p) return;
+    openStrategyProduct(p);
+}
+
 async function openStrategy(idx) {
     const p = productsData[idx];
     if (!p) return;
+    openStrategyProduct(p);
+}
 
+async function openStrategyProduct(p) {
     const modal = document.getElementById('strategyModal');
     modal.innerHTML = `<div class="modal-overlay" onclick="closeStrategy(event)">
         <div class="modal modal-wide" onclick="event.stopPropagation()">
@@ -193,6 +205,7 @@ async function openStrategy(idx) {
                 barcode: p.barcode,
                 title: p.productName,
                 salePrice: p.salePrice,
+                costPrice: p.costPrice || 0,
                 categoryName: p.categoryName || '',
                 brand: p.brand || ''
             })
@@ -264,12 +277,65 @@ function renderResearchTabs(research, product) {
     // Önerilen Başlık
     if (ta.suggestedTitle && ta.suggestedTitle !== ta.currentTitle) {
         html += `<div class="strategy-section">
-            <h3><i class="fas fa-magic"></i> Önerilen Başlık</h3>
+            <h3><i class="fas fa-magic"></i> Önerilen Başlık (Algoritma)</h3>
             <div class="title-box suggested" id="suggestedTitleText">${ta.suggestedTitle}</div>
             <button class="btn btn-sm" style="margin-top:8px;background:var(--primary-bg);color:var(--primary-light);border:1px solid var(--primary-border);" onclick="copySuggestedTitle()">
                 <i class="fas fa-copy"></i> Kopyala
             </button>
         </div>`;
+    }
+
+    // AI Önerilen Başlık (Gemini)
+    if (research.aiSuggestedTitle) {
+        html += `<div class="strategy-section">
+            <h3><i class="fas fa-robot"></i> AI Başlık Önerisi <span class="badge badge-blue" style="font-size:10px;">Gemini AI</span></h3>
+            <div class="title-box suggested" id="aiSuggestedTitleText" style="border-color:rgba(77,171,247,0.4);background:rgba(77,171,247,0.06);">${research.aiSuggestedTitle}</div>
+            <button class="btn btn-sm" style="margin-top:8px;background:rgba(77,171,247,0.1);color:#4dabf7;border:1px solid rgba(77,171,247,0.3);" onclick="copyAiTitle()">
+                <i class="fas fa-copy"></i> AI Başlığı Kopyala
+            </button>
+        </div>`;
+    } else if (research.aiEnabled === false) {
+        html += `<div class="strategy-section">
+            <div style="padding:14px 18px;background:rgba(255,169,77,0.08);border:1px solid rgba(255,169,77,0.2);border-radius:10px;font-size:13px;color:var(--text-dim);">
+                <i class="fas fa-robot" style="color:var(--orange);"></i> AI başlık önerisi için <strong>Ayarlar</strong> sayfasından Gemini API key girin.
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--primary-light);margin-left:4px;">Ücretsiz key al →</a>
+            </div>
+        </div>`;
+    }
+
+    // AI Analiz Sonuçları
+    if (research.aiAnalysis) {
+        html += `<div class="strategy-section">
+            <h3><i class="fas fa-brain"></i> AI Ürün Analizi <span class="badge badge-blue" style="font-size:10px;">Gemini AI</span></h3>
+            <div class="ai-insights">`;
+        if (research.aiAnalysis.positioning) {
+            html += `<div class="ai-insight-card">
+                <div class="ai-insight-icon">📦</div>
+                <div class="ai-insight-content">
+                    <div class="ai-insight-title">Ürün Konumlandırma</div>
+                    <div class="ai-insight-text">${research.aiAnalysis.positioning}</div>
+                </div>
+            </div>`;
+        }
+        if (research.aiAnalysis.pricing) {
+            html += `<div class="ai-insight-card">
+                <div class="ai-insight-icon">💰</div>
+                <div class="ai-insight-content">
+                    <div class="ai-insight-title">Fiyatlandırma</div>
+                    <div class="ai-insight-text">${research.aiAnalysis.pricing}</div>
+                </div>
+            </div>`;
+        }
+        if (research.aiAnalysis.visibility) {
+            html += `<div class="ai-insight-card">
+                <div class="ai-insight-icon">🔍</div>
+                <div class="ai-insight-content">
+                    <div class="ai-insight-title">Görünürlük</div>
+                    <div class="ai-insight-text">${research.aiAnalysis.visibility}</div>
+                </div>
+            </div>`;
+        }
+        html += `</div></div>`;
     }
 
     // Sorunlar & İpuçları
@@ -332,6 +398,49 @@ function renderResearchTabs(research, product) {
         html += `</div></div>`;
     }
 
+    // Trendyol Arama Sonuçları — Organik Rakip Analizi
+    const ts = research.trendyolSearch;
+    if (ts && ts.competitors && ts.competitors.length > 0) {
+        html += `<div class="strategy-section">
+            <h3><i class="fas fa-search"></i> Trendyol'daki İlk ${ts.competitors.length} Rakip <span class="badge badge-green" style="font-size:10px;">Organik Arama</span></h3>
+            <p style="font-size:12px;color:var(--text-dim);margin-bottom:10px;">"${ts.searchQuery}" aramasında ${ts.totalResults > 0 ? ts.totalResults.toLocaleString('tr-TR') + ' sonuç' : 'sonuçlar'} — ilk sıradaki ürünlerin başlık analizi:</p>
+            <div class="trendyol-competitors">`;
+        
+        ts.competitors.forEach((c, i) => {
+            html += `<div class="ai-insight-card" style="margin-bottom:8px;">
+                <div class="ai-insight-icon" style="font-size:18px;font-weight:700;color:var(--primary-light);">#${i + 1}</div>
+                <div class="ai-insight-content" style="flex:1;">
+                    <div class="ai-insight-title" style="font-size:13px;">${c.name}</div>
+                    <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;">
+                        <span class="badge badge-blue">${c.brand}</span>
+                        <span class="badge badge-green">${fmtMoney(c.price)}</span>
+                        ${c.ratingScore > 0 ? `<span class="badge badge-orange">⭐ ${c.ratingScore.toFixed(1)} (${c.ratingCount})</span>` : ''}
+                        ${c.favoriteCount > 0 ? `<span class="badge" style="background:rgba(255,107,107,0.1);color:var(--red);border:1px solid rgba(255,107,107,0.3);">❤️ ${c.favoriteCount}</span>` : ''}
+                    </div>
+                </div>
+            </div>`;
+        });
+        
+        html += `</div></div>`;
+    }
+
+    // Trendyol Arama Önerileri (organik kelimeler)
+    if (ts && ts.keywords && ts.keywords.length > 0) {
+        html += `<div class="strategy-section">
+            <h3><i class="fas fa-fire"></i> Trendyol Arama Önerileri <span class="badge badge-orange" style="font-size:10px;">Organik</span></h3>
+            <p style="font-size:12px;color:var(--text-dim);margin-bottom:10px;">Trendyol kullanıcıları bu kelimeleri arıyor:</p>
+            <div class="keyword-grid">`;
+        
+        ts.keywords.forEach(kw => {
+            const inTitle = research.productTitle.toLowerCase().includes(kw.toLowerCase());
+            html += `<span class="${inTitle ? 'keyword-tag used' : 'keyword-tag missing'}" title="Trendyol arama önerisi">
+                <i class="fas fa-${inTitle ? 'check' : 'fire'}"></i> ${kw}
+            </span>`;
+        });
+        
+        html += `</div></div>`;
+    }
+
     html += `</div>`; // tab-title kapanış
 
     // ========== TAB 2: FİYAT & REKABET ==========
@@ -339,6 +448,17 @@ function renderResearchTabs(research, product) {
 
     if (!ca.hasData) {
         html += `<div class="empty-state"><i class="fas fa-store-slash"></i><p>${ca.message}</p></div>`;
+        if (ca.breakEvenPrice) {
+            html += `<div class="strategy-section">
+                <div class="strategy-grid">
+                    <div class="strategy-card" style="border:1px solid var(--orange);">
+                        <div class="s-title">⚖️ Başa Baş Fiyat</div>
+                        <div class="s-value" style="color:var(--orange);">${fmtMoney(ca.breakEvenPrice)}</div>
+                        <div class="s-desc">Bu fiyatın altında zarar edersiniz</div>
+                    </div>
+                </div>
+            </div>`;
+        }
     } else {
         // Fiyat Özeti
         html += `<div class="strategy-section">
@@ -363,6 +483,11 @@ function renderResearchTabs(research, product) {
                     <div class="s-title">İndirimli Ürünler</div>
                     <div class="s-value green">%${ca.discountStats.percent}</div>
                     <div class="s-desc">${ca.discountStats.count} ürün, ort. %${ca.discountStats.avgDiscount} indirim</div>
+                </div>` : ''}
+                ${ca.breakEvenPrice ? `<div class="strategy-card" style="border:1px solid var(--orange);">
+                    <div class="s-title">⚖️ Başa Baş Fiyat</div>
+                    <div class="s-value" style="color:var(--orange);">${fmtMoney(ca.breakEvenPrice)}</div>
+                    <div class="s-desc">Bu fiyatın altında zarar edersiniz</div>
                 </div>` : ''}
             </div>
         </div>`;
@@ -769,4 +894,163 @@ function fmtMoney(value) {
     return new Intl.NumberFormat('tr-TR', {
         style: 'currency', currency: 'TRY', minimumFractionDigits: 2
     }).format(value || 0);
+}
+
+// ========== AI BAŞLIK KOPYALA ==========
+function copyAiTitle() {
+    const el = document.getElementById('aiSuggestedTitleText');
+    if (el) {
+        navigator.clipboard.writeText(el.textContent).then(() => {
+            showToast('AI başlık kopyalandı!', 'success');
+        }).catch(() => {
+            const range = document.createRange();
+            range.selectNode(el);
+            window.getSelection().removeAllRanges();
+            window.getSelection().addRange(range);
+            document.execCommand('copy');
+            window.getSelection().removeAllRanges();
+            showToast('AI başlık kopyalandı!', 'success');
+        });
+    }
+}
+
+// ========== GEMINI AI AYARLARI ==========
+async function checkGeminiStatus() {
+    try {
+        const res = await fetch(`${API_BASE}/trendyol/settings/gemini`);
+        const data = await res.json();
+        const el = document.getElementById('geminiStatus');
+        if (el) {
+            if (data.configured) {
+                el.innerHTML = `<span class="green"><i class="fas fa-check-circle"></i> Gemini AI aktif (${data.maskedKey})</span>`;
+            } else {
+                el.innerHTML = `<span class="text-dim"><i class="fas fa-info-circle"></i> API key girilmemiş</span>`;
+            }
+        }
+    } catch (e) { /* ignore */ }
+}
+
+async function saveGeminiKey() {
+    const apiKey = document.getElementById('geminiApiKey').value.trim();
+    try {
+        const res = await fetch(`${API_BASE}/trendyol/settings/gemini`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ apiKey })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(apiKey ? 'Gemini API key kaydedildi!' : 'Gemini API key silindi', 'success');
+            document.getElementById('geminiApiKey').value = '';
+            checkGeminiStatus();
+        }
+    } catch (err) {
+        showToast('API key kaydedilemedi', 'error');
+    }
+}
+
+// ========== TREND KEŞİF ==========
+async function searchTrend() {
+    const input = document.getElementById('trendSearchInput');
+    const query = input.value.trim();
+    if (!query) { showToast('Arama terimi girin', 'warning'); return; }
+    
+    const container = document.getElementById('trendResults');
+    container.innerHTML = `<div class="empty-state"><div class="loading"></div><p style="margin-top:16px;">Trendyol'da "${query}" aranıyor...</p></div>`;
+    
+    try {
+        const res = await fetch(`${API_BASE}/trendyol/trend-discovery?query=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        
+        if (data.success) {
+            renderTrendResults(data.data, query);
+        } else throw new Error(data.error);
+    } catch (err) {
+        container.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle red"></i><p>Hata: ${err.message}</p></div>`;
+    }
+}
+
+async function loadPopularTrends() {
+    const container = document.getElementById('trendResults');
+    container.innerHTML = `<div class="empty-state"><div class="loading"></div><p style="margin-top:16px;">Popüler trendler yükleniyor...</p></div>`;
+    
+    try {
+        const res = await fetch(`${API_BASE}/trendyol/trend-discovery`);
+        const data = await res.json();
+        
+        if (data.success) {
+            renderTrendResults(data.data, null);
+        } else throw new Error(data.error);
+    } catch (err) {
+        container.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle red"></i><p>Hata: ${err.message}</p></div>`;
+    }
+}
+
+function renderTrendResults(data, searchQuery) {
+    const container = document.getElementById('trendResults');
+    let html = '';
+    
+    // AI Trend Analizi
+    if (data.aiTrendAnalysis) {
+        html += `<div class="card" style="margin-bottom:20px;border:1px solid rgba(77,171,247,0.3);">
+            <div class="card-header"><h2><i class="fas fa-robot"></i> AI Trend Analizi <span class="badge badge-blue" style="font-size:10px;">Gemini AI</span></h2></div>
+            <div class="card-body">
+                <p style="font-size:14px;line-height:1.6;color:var(--text);">${data.aiTrendAnalysis}</p>
+            </div>
+        </div>`;
+    }
+    
+    data.results.forEach(result => {
+        if (result.products.length === 0 && result.suggestions.length === 0) return;
+        
+        html += `<div class="card" style="margin-bottom:20px;">
+            <div class="card-header">
+                <h2><i class="fas fa-search"></i> "${result.query}" ${result.totalCount > 0 ? `<span class="badge badge-green" style="font-size:11px;">${result.totalCount.toLocaleString('tr-TR')} sonuç</span>` : ''}</h2>
+            </div>
+            <div class="card-body">`;
+        
+        // Arama Önerileri
+        if (result.suggestions.length > 0) {
+            html += `<div style="margin-bottom:16px;">
+                <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;"><i class="fas fa-lightbulb" style="color:var(--orange);"></i> İlgili Arama Önerileri:</div>
+                <div class="keyword-grid">`;
+            result.suggestions.forEach(s => {
+                html += `<span class="keyword-tag missing" style="cursor:pointer;" onclick="document.getElementById('trendSearchInput').value='${s.replace(/'/g, "\\'")}';searchTrend();">
+                    <i class="fas fa-search"></i> ${s}
+                </span>`;
+            });
+            html += `</div></div>`;
+        }
+        
+        // Ürünler
+        if (result.products.length > 0) {
+            html += `<div style="font-size:12px;color:var(--text-dim);margin-bottom:10px;"><i class="fas fa-fire" style="color:var(--orange);"></i> En Çok Satan İlk ${result.products.length} Ürün:</div>`;
+            
+            result.products.forEach((p, i) => {
+                html += `<div class="ai-insight-card" style="margin-bottom:8px;">
+                    <div class="ai-insight-icon" style="font-size:16px;font-weight:700;color:var(--primary-light);">#${i + 1}</div>
+                    <div class="ai-insight-content" style="flex:1;">
+                        <div class="ai-insight-title" style="font-size:13px;">${p.name}</div>
+                        <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;font-size:11px;">
+                            <span class="badge badge-blue">${p.brand}</span>
+                            <span class="badge badge-green" style="font-weight:600;">${fmtMoney(p.price)}</span>
+                            ${p.originalPrice > p.price ? `<span class="badge badge-red" style="text-decoration:line-through;">${fmtMoney(p.originalPrice)}</span>` : ''}
+                            ${p.ratingScore > 0 ? `<span class="badge badge-orange">⭐ ${p.ratingScore.toFixed(1)} (${p.ratingCount})</span>` : ''}
+                            ${p.favoriteCount > 0 ? `<span class="badge" style="background:rgba(255,107,107,0.1);color:var(--red);border:1px solid rgba(255,107,107,0.3);">❤️ ${p.favoriteCount.toLocaleString('tr-TR')}</span>` : ''}
+                            ${p.merchantName ? `<span class="badge" style="background:var(--bg);color:var(--text-dim);">🏪 ${p.merchantName}</span>` : ''}
+                        </div>
+                    </div>
+                    ${p.url ? `<a href="${p.url}" target="_blank" style="color:var(--primary-light);font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt"></i></a>` : ''}
+                </div>`;
+            });
+        }
+        
+        html += `</div></div>`;
+    });
+    
+    if (!html) {
+        html = `<div class="empty-state"><i class="fas fa-search"></i><p>Sonuç bulunamadı. Farklı bir arama deneyin.</p></div>`;
+    }
+    
+    container.innerHTML = html;
 }
