@@ -207,7 +207,8 @@ async function openStrategyProduct(p) {
                 salePrice: p.salePrice,
                 costPrice: p.costPrice || 0,
                 categoryName: p.categoryName || '',
-                brand: p.brand || ''
+                brand: p.brand || '',
+                commissionRate: p.commissionRate || 20
             })
         });
         const data = await res.json();
@@ -402,8 +403,8 @@ function renderResearchTabs(research, product) {
     const ts = research.trendyolSearch;
     if (ts && ts.competitors && ts.competitors.length > 0) {
         html += `<div class="strategy-section">
-            <h3><i class="fas fa-search"></i> Trendyol'daki İlk ${ts.competitors.length} Rakip <span class="badge badge-green" style="font-size:10px;">Organik Arama</span></h3>
-            <p style="font-size:12px;color:var(--text-dim);margin-bottom:10px;">"${ts.searchQuery}" aramasında ${ts.totalResults > 0 ? ts.totalResults.toLocaleString('tr-TR') + ' sonuç' : 'sonuçlar'} — ilk sıradaki ürünlerin başlık analizi:</p>
+            <h3><i class="fas fa-search"></i> Trendyol'daki İlk ${ts.competitors.length} Rakip <span class="badge badge-green" style="font-size:10px;">Organik Arama</span> ${ts.ratedCount ? `<span class="badge badge-orange" style="font-size:10px;">⭐ ${ts.ratedCount} puanlı</span>` : ''}</h3>
+            <p style="font-size:12px;color:var(--text-dim);margin-bottom:10px;">"${ts.searchQuery}" aramasında ${ts.totalResults > 0 ? ts.totalResults.toLocaleString('tr-TR') + ' sonuç' : 'sonuçlar'} — puanlı/yorumlu rakipler öncelikli:</p>
             <div class="trendyol-competitors">`;
         
         ts.competitors.forEach((c, i) => {
@@ -448,18 +449,90 @@ function renderResearchTabs(research, product) {
 
     if (!ca.hasData) {
         html += `<div class="empty-state"><i class="fas fa-store-slash"></i><p>${ca.message}</p></div>`;
-        if (ca.breakEvenPrice) {
-            html += `<div class="strategy-section">
-                <div class="strategy-grid">
-                    <div class="strategy-card" style="border:1px solid var(--orange);">
-                        <div class="s-title">⚖️ Başa Baş Fiyat</div>
-                        <div class="s-value" style="color:var(--orange);">${fmtMoney(ca.breakEvenPrice)}</div>
-                        <div class="s-desc">Bu fiyatın altında zarar edersiniz</div>
-                    </div>
+    }
+
+    // Maliyet Detayları (varsa)
+    if (ca.costBreakdown) {
+        const cb = ca.costBreakdown;
+        html += `<div class="strategy-section">
+            <h3><i class="fas fa-receipt"></i> Maliyet Detayları</h3>
+            <div class="strategy-grid">
+                <div class="strategy-card">
+                    <div class="s-title">📦 Ürün Maliyeti</div>
+                    <div class="s-value" style="color:var(--primary-light);">${fmtMoney(cb.productCost)}</div>
+                    <div class="s-desc">Alış/tedarik fiyatı</div>
                 </div>
-            </div>`;
-        }
-    } else {
+                <div class="strategy-card">
+                    <div class="s-title">🚚 Kargo</div>
+                    <div class="s-value orange">${fmtMoney(cb.shipping)}</div>
+                    <div class="s-desc">Trendyol kargo ücreti</div>
+                </div>
+                <div class="strategy-card">
+                    <div class="s-title">💳 Komisyon (%${cb.commissionRate})</div>
+                    <div class="s-value red">${fmtMoney(cb.commission)}</div>
+                    <div class="s-desc">Trendyol komisyonu</div>
+                </div>
+                <div class="strategy-card">
+                    <div class="s-title">🏢 Platform Ücreti</div>
+                    <div class="s-value" style="color:var(--text-dim);">${fmtMoney(cb.platformFee)}</div>
+                    <div class="s-desc">Sabit platform ücreti</div>
+                </div>
+                <div class="strategy-card" style="border:1px solid var(--orange);">
+                    <div class="s-title">⚖️ Başa Baş Fiyat</div>
+                    <div class="s-value" style="color:var(--orange);font-size:20px;">${fmtMoney(ca.breakEvenPrice)}</div>
+                    <div class="s-desc">Bu fiyatın altında zarar edersiniz</div>
+                </div>
+                ${ca.pricingStrategy && ca.pricingStrategy.profitAtCurrent !== null ? `<div class="strategy-card" style="border:1px solid ${ca.pricingStrategy.profitAtCurrent >= 0 ? 'var(--green)' : 'var(--red)'};">
+                    <div class="s-title">${ca.pricingStrategy.profitAtCurrent >= 0 ? '💰' : '🔴'} Mevcut Kâr/Zarar</div>
+                    <div class="s-value" style="color:${ca.pricingStrategy.profitAtCurrent >= 0 ? 'var(--green)' : 'var(--red)'};">${fmtMoney(ca.pricingStrategy.profitAtCurrent)}</div>
+                    <div class="s-desc">Satış başına (${fmtMoney(research.productPrice)} fiyatından)</div>
+                </div>` : ''}
+            </div>
+        </div>`;
+    } else if (ca.breakEvenPrice) {
+        html += `<div class="strategy-section">
+            <div class="strategy-grid">
+                <div class="strategy-card" style="border:1px solid var(--orange);">
+                    <div class="s-title">⚖️ Başa Baş Fiyat</div>
+                    <div class="s-value" style="color:var(--orange);">${fmtMoney(ca.breakEvenPrice)}</div>
+                    <div class="s-desc">Bu fiyatın altında zarar edersiniz</div>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    // Fiyat Stratejisi (kupon stratejisi dahil)
+    if (ca.pricingStrategy && ca.pricingStrategy.type !== 'normal') {
+        const ps = ca.pricingStrategy;
+        const borderColor = ps.canCompete ? 'var(--orange)' : 'var(--red)';
+        const bgColor = ps.canCompete ? 'rgba(255,169,77,0.06)' : 'rgba(255,107,107,0.06)';
+
+        html += `<div class="strategy-section">
+            <h3><i class="fas fa-chess"></i> Fiyat Stratejisi</h3>
+            <div style="padding:16px 20px;background:${bgColor};border:1px solid ${borderColor};border-radius:12px;">
+                <div style="font-size:16px;font-weight:700;margin-bottom:8px;color:${ps.canCompete ? 'var(--orange)' : 'var(--red)'};">${ps.title}</div>
+                <div style="font-size:13px;color:var(--text);margin-bottom:16px;line-height:1.5;">${ps.description}</div>
+                ${ps.actions.length > 0 ? `<div style="display:grid;gap:10px;">
+                    ${ps.actions.map(a => `<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 14px;background:var(--bg);border:1px solid var(--border);border-radius:10px;">
+                        <span style="font-size:22px;flex-shrink:0;">${a.icon}</span>
+                        <div>
+                            <div style="font-size:13px;font-weight:600;color:var(--text);">${a.title}</div>
+                            <div style="font-size:12px;color:var(--text);margin-top:2px;">${a.text}</div>
+                            <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${a.detail}</div>
+                        </div>
+                    </div>`).join('')}
+                </div>` : ''}
+                ${ps.suggestedListPrice ? `<div style="margin-top:14px;padding:12px 16px;background:rgba(77,171,247,0.08);border:1px solid rgba(77,171,247,0.25);border-radius:10px;">
+                    <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;">📌 Önerilen Strateji Özeti:</div>
+                    <div style="font-size:14px;font-weight:600;color:var(--primary-light);">
+                        Liste Fiyatı: ${fmtMoney(ps.suggestedListPrice)} → Kupon: ${fmtMoney(ps.suggestedCoupon)} → Müşteri Fiyatı: ${fmtMoney(ps.suggestedListPrice - ps.suggestedCoupon)}
+                    </div>
+                </div>` : ''}
+            </div>
+        </div>`;
+    }
+
+    if (ca.hasData) {
         // Fiyat Özeti
         html += `<div class="strategy-section">
             <h3><i class="fas fa-chart-pie"></i> Fiyat Genel Bakış</h3>
@@ -483,11 +556,6 @@ function renderResearchTabs(research, product) {
                     <div class="s-title">İndirimli Ürünler</div>
                     <div class="s-value green">%${ca.discountStats.percent}</div>
                     <div class="s-desc">${ca.discountStats.count} ürün, ort. %${ca.discountStats.avgDiscount} indirim</div>
-                </div>` : ''}
-                ${ca.breakEvenPrice ? `<div class="strategy-card" style="border:1px solid var(--orange);">
-                    <div class="s-title">⚖️ Başa Baş Fiyat</div>
-                    <div class="s-value" style="color:var(--orange);">${fmtMoney(ca.breakEvenPrice)}</div>
-                    <div class="s-desc">Bu fiyatın altında zarar edersiniz</div>
                 </div>` : ''}
             </div>
         </div>`;
@@ -947,110 +1015,4 @@ async function saveGeminiKey() {
     } catch (err) {
         showToast('API key kaydedilemedi', 'error');
     }
-}
-
-// ========== TREND KEŞİF ==========
-async function searchTrend() {
-    const input = document.getElementById('trendSearchInput');
-    const query = input.value.trim();
-    if (!query) { showToast('Arama terimi girin', 'warning'); return; }
-    
-    const container = document.getElementById('trendResults');
-    container.innerHTML = `<div class="empty-state"><div class="loading"></div><p style="margin-top:16px;">Trendyol'da "${query}" aranıyor...</p></div>`;
-    
-    try {
-        const res = await fetch(`${API_BASE}/trendyol/trend-discovery?query=${encodeURIComponent(query)}`);
-        const data = await res.json();
-        
-        if (data.success) {
-            renderTrendResults(data.data, query);
-        } else throw new Error(data.error);
-    } catch (err) {
-        container.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle red"></i><p>Hata: ${err.message}</p></div>`;
-    }
-}
-
-async function loadPopularTrends() {
-    const container = document.getElementById('trendResults');
-    container.innerHTML = `<div class="empty-state"><div class="loading"></div><p style="margin-top:16px;">Popüler trendler yükleniyor...</p></div>`;
-    
-    try {
-        const res = await fetch(`${API_BASE}/trendyol/trend-discovery`);
-        const data = await res.json();
-        
-        if (data.success) {
-            renderTrendResults(data.data, null);
-        } else throw new Error(data.error);
-    } catch (err) {
-        container.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle red"></i><p>Hata: ${err.message}</p></div>`;
-    }
-}
-
-function renderTrendResults(data, searchQuery) {
-    const container = document.getElementById('trendResults');
-    let html = '';
-    
-    // AI Trend Analizi
-    if (data.aiTrendAnalysis) {
-        html += `<div class="card" style="margin-bottom:20px;border:1px solid rgba(77,171,247,0.3);">
-            <div class="card-header"><h2><i class="fas fa-robot"></i> AI Trend Analizi <span class="badge badge-blue" style="font-size:10px;">Gemini AI</span></h2></div>
-            <div class="card-body">
-                <p style="font-size:14px;line-height:1.6;color:var(--text);">${data.aiTrendAnalysis}</p>
-            </div>
-        </div>`;
-    }
-    
-    data.results.forEach(result => {
-        if (result.products.length === 0 && result.suggestions.length === 0) return;
-        
-        html += `<div class="card" style="margin-bottom:20px;">
-            <div class="card-header">
-                <h2><i class="fas fa-search"></i> "${result.query}" ${result.totalCount > 0 ? `<span class="badge badge-green" style="font-size:11px;">${result.totalCount.toLocaleString('tr-TR')} sonuç</span>` : ''}</h2>
-            </div>
-            <div class="card-body">`;
-        
-        // Arama Önerileri
-        if (result.suggestions.length > 0) {
-            html += `<div style="margin-bottom:16px;">
-                <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;"><i class="fas fa-lightbulb" style="color:var(--orange);"></i> İlgili Arama Önerileri:</div>
-                <div class="keyword-grid">`;
-            result.suggestions.forEach(s => {
-                html += `<span class="keyword-tag missing" style="cursor:pointer;" onclick="document.getElementById('trendSearchInput').value='${s.replace(/'/g, "\\'")}';searchTrend();">
-                    <i class="fas fa-search"></i> ${s}
-                </span>`;
-            });
-            html += `</div></div>`;
-        }
-        
-        // Ürünler
-        if (result.products.length > 0) {
-            html += `<div style="font-size:12px;color:var(--text-dim);margin-bottom:10px;"><i class="fas fa-fire" style="color:var(--orange);"></i> En Çok Satan İlk ${result.products.length} Ürün:</div>`;
-            
-            result.products.forEach((p, i) => {
-                html += `<div class="ai-insight-card" style="margin-bottom:8px;">
-                    <div class="ai-insight-icon" style="font-size:16px;font-weight:700;color:var(--primary-light);">#${i + 1}</div>
-                    <div class="ai-insight-content" style="flex:1;">
-                        <div class="ai-insight-title" style="font-size:13px;">${p.name}</div>
-                        <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;font-size:11px;">
-                            <span class="badge badge-blue">${p.brand}</span>
-                            <span class="badge badge-green" style="font-weight:600;">${fmtMoney(p.price)}</span>
-                            ${p.originalPrice > p.price ? `<span class="badge badge-red" style="text-decoration:line-through;">${fmtMoney(p.originalPrice)}</span>` : ''}
-                            ${p.ratingScore > 0 ? `<span class="badge badge-orange">⭐ ${p.ratingScore.toFixed(1)} (${p.ratingCount})</span>` : ''}
-                            ${p.favoriteCount > 0 ? `<span class="badge" style="background:rgba(255,107,107,0.1);color:var(--red);border:1px solid rgba(255,107,107,0.3);">❤️ ${p.favoriteCount.toLocaleString('tr-TR')}</span>` : ''}
-                            ${p.merchantName ? `<span class="badge" style="background:var(--bg);color:var(--text-dim);">🏪 ${p.merchantName}</span>` : ''}
-                        </div>
-                    </div>
-                    ${p.url ? `<a href="${p.url}" target="_blank" style="color:var(--primary-light);font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt"></i></a>` : ''}
-                </div>`;
-            });
-        }
-        
-        html += `</div></div>`;
-    });
-    
-    if (!html) {
-        html = `<div class="empty-state"><i class="fas fa-search"></i><p>Sonuç bulunamadı. Farklı bir arama deneyin.</p></div>`;
-    }
-    
-    container.innerHTML = html;
 }

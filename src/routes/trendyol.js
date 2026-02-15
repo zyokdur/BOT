@@ -94,7 +94,7 @@ router.post('/strategy', async (req, res) => {
 
 router.post('/research', async (req, res) => {
     try {
-        const { barcode, title, salePrice, categoryName, brand, costPrice } = req.body;
+        const { barcode, title, salePrice, categoryName, brand, costPrice, commissionRate } = req.body;
         if (!title) return res.status(400).json({ success: false, error: 'Ürün başlığı gerekli' });
 
         // 1. Paralel olarak: Mağaza ürünleri + Trendyol arama sonuçları
@@ -129,12 +129,12 @@ router.post('/research', async (req, res) => {
             });
         }
 
-        // 3. Trendyol arama sonuçlarından ilk 5 rakip
-        const trendyolCompetitors = (trendyolData.products || []).slice(0, 5);
+        // 3. Trendyol arama sonuçlarından rakipler (4-10 arası, puanlılar öncelikli)
+        const trendyolCompetitors = (trendyolData.products || []);
         const trendyolKeywords = trendyolData.keywords || [];
 
         // 4. Fiyat karşılaştırması (mağaza ürünleri)
-        const competitorAnalysis = analyzeCompetitors(categoryProducts, salePrice, categoryName, costPrice, barcode);
+        const competitorAnalysis = analyzeCompetitors(categoryProducts, salePrice, categoryName, costPrice, barcode, commissionRate);
 
         // 5. Başlık analizi (Trendyol arama verileriyle zenginleştirilmiş)
         const titleAnalysis = analyzeTitleSEO(title, categoryProducts, categoryName, brand, trendyolCompetitors, trendyolKeywords);
@@ -144,11 +144,11 @@ router.post('/research', async (req, res) => {
         let aiSuggestedTitle = null;
         try {
             if (geminiAI.isConfigured()) {
-                // Rakip başlıkları: Trendyol arama sonuçları öncelikli
+                // Rakip başlıkları: Trendyol arama sonuçları öncelikli (puanlı olanlar)
                 const competitorTitles = [
                     ...trendyolCompetitors.map(p => p.name),
                     ...categoryProducts.slice(0, 5).map(p => p.title)
-                ].filter(Boolean).slice(0, 10);
+                ].filter(Boolean).slice(0, 15);
 
                 const [aiTitle, aiInsights] = await Promise.all([
                     geminiAI.generateTitleSuggestion(
@@ -187,7 +187,8 @@ router.post('/research', async (req, res) => {
                     competitors: trendyolCompetitors,
                     keywords: trendyolKeywords,
                     searchQuery: trendyolData.searchQuery || '',
-                    totalResults: trendyolData.totalCount || 0
+                    totalResults: trendyolData.totalCount || 0,
+                    ratedCount: trendyolData.ratedCount || 0
                 },
                 aiSuggestedTitle,
                 aiAnalysis,
@@ -505,10 +506,12 @@ function generateSuggestedTitle(currentTitle, missingKeywords, brand, categoryNa
 }
 
 // ========== REKABET ANALİZİ ==========
-function analyzeCompetitors(categoryProducts, currentPrice, categoryName, costPrice, barcode) {
+function analyzeCompetitors(categoryProducts, currentPrice, categoryName, costPrice, barcode, commissionRate) {
     // Başa baş fiyat hesapla
     let breakEvenPrice = null;
     const productCost = costPrice || (barcode ? productCosts[barcode] : 0) || 0;
+    const commRate = commissionRate || 20; // verilen komisyon oranı veya varsayılan
+
     if (productCost > 0) {
         // Başa baş = maliyet + kargo + komisyon + platform ücreti = satış fiyatı
         // Net kâr = 0 olacak fiyatı bul (iteratif)
@@ -519,7 +522,6 @@ function analyzeCompetitors(categoryProducts, currentPrice, categoryName, costPr
             { min: 300, max: 399.99, cost: 110 },
             { min: 400, max: Infinity, cost: 130 }
         ];
-        const commRate = 20; // varsayılan komisyon
         
         // İteratif hesaplama
         let bePrice = productCost + platformFee + 58.50; // başlangıç tahmini
@@ -532,7 +534,35 @@ function analyzeCompetitors(categoryProducts, currentPrice, categoryName, costPr
         breakEvenPrice = Math.ceil(bePrice * 100) / 100;
     }
 
+    // Toplam maliyet detayları (kargo + komisyon + platform ücreti)
+    let costBreakdown = null;
+    if (productCost > 0 && breakEvenPrice) {
+        const platformFee = 13.80;
+        const shippingRanges = [
+            { min: 0, max: 149.99, cost: 58.50 },
+            { min: 150, max: 299.99, cost: 95.50 },
+            { min: 300, max: 399.99, cost: 110 },
+            { min: 400, max: Infinity, cost: 130 }
+        ];
+        const shipping = (shippingRanges.find(r => breakEvenPrice >= r.min && breakEvenPrice <= r.max) || { cost: 130 }).cost;
+        const commission = (breakEvenPrice * commRate) / 100;
+        costBreakdown = {
+            productCost: productCost,
+            shipping: shipping,
+            commission: Math.round(commission * 100) / 100,
+            commissionRate: commRate,
+            platformFee: platformFee,
+            totalCost: Math.round((productCost + shipping + commission + platformFee) * 100) / 100
+        };
+    }
+
     if (categoryProducts.length === 0) {
+        // Fiyat stratejisi (rakip verisi olmadan bile)
+        let pricingStrategy = null;
+        if (breakEvenPrice && currentPrice > 0) {
+            pricingStrategy = generatePricingStrategy(breakEvenPrice, currentPrice, null, costBreakdown);
+        }
+
         return {
             hasData: false,
             message: `"${categoryName}" kategorisinde karşılaştırma yapılacak başka ürün bulunamadı.`,
@@ -540,7 +570,9 @@ function analyzeCompetitors(categoryProducts, currentPrice, categoryName, costPr
             priceStats: null,
             pricePosition: null,
             recommendation: null,
-            breakEvenPrice
+            breakEvenPrice,
+            costBreakdown,
+            pricingStrategy
         };
     }
 
@@ -645,6 +677,12 @@ function analyzeCompetitors(categoryProducts, currentPrice, categoryName, costPr
         { label: 'Pahalı', range: `${formatMoney(q3)} - ${formatMoney(maxPrice)}`, count: prices.filter(p => p > q3).length }
     ];
 
+    // Fiyat stratejisi (maliyete göre akıllı strateji)
+    let pricingStrategy = null;
+    if (breakEvenPrice) {
+        pricingStrategy = generatePricingStrategy(breakEvenPrice, currentPrice, avgPrice, costBreakdown);
+    }
+
     return {
         hasData: true,
         competitors,
@@ -660,7 +698,9 @@ function analyzeCompetitors(categoryProducts, currentPrice, categoryName, costPr
             percent: position,
             label: position <= 25 ? 'En Ucuzlar Arasında' : position <= 50 ? 'Ortalamanın Altında' : position <= 75 ? 'Ortalamanın Üstünde' : 'En Pahalılar Arasında',
             cheaperCount,
-            expensiveCount: prices.length - cheaperCount
+            expensiveC,
+        costBreakdown,
+        pricingStrategyount: prices.length - cheaperCount
         },
         discountStats,
         shippingOptimization,
@@ -668,6 +708,127 @@ function analyzeCompetitors(categoryProducts, currentPrice, categoryName, costPr
         segments,
         breakEvenPrice
     };
+}
+
+/**
+ * Akıllı fiyatlandırma stratejisi
+ * Maliyet > pazar fiyatına yakınsa veya geçiyorsa, kupon/indirim stratejisi öner
+ */
+function generatePricingStrategy(breakEvenPrice, currentPrice, avgMarketPrice, costBreakdown) {
+    const strategy = {
+        type: 'normal', // normal, cannot-compete, coupon-strategy
+        canCompete: true,
+        title: '',
+        description: '',
+        actions: [],
+        suggestedListPrice: null,
+        suggestedCoupon: null,
+        profitAtCurrent: null
+    };
+
+    if (!costBreakdown) return null;
+
+    const productCost = costBreakdown.productCost;
+    const totalMinCost = breakEvenPrice; // başa baş noktası
+
+    // Mevcut fiyattan kâr/zarar
+    const currentShipping = getShippingForPrice(currentPrice);
+    const currentCommission = (currentPrice * costBreakdown.commissionRate) / 100;
+    const currentProfit = currentPrice - productCost - currentShipping - currentCommission - 13.80;
+    strategy.profitAtCurrent = Math.round(currentProfit * 100) / 100;
+
+    if (avgMarketPrice && breakEvenPrice > avgMarketPrice * 0.95) {
+        // DURUM: Başa baş fiyat, pazar ortalamasına yakın veya üstünde — fiyatla yarışılamaz!
+        strategy.type = 'cannot-compete';
+        strategy.canCompete = false;
+        strategy.title = '⚠️ Fiyatla Yarışılamıyor!';
+        strategy.description = `Ürün maliyetiniz (${formatMoney(productCost)}) çok yüksek. Başa baş fiyat ${formatMoney(breakEvenPrice)} iken pazar ortalaması ${formatMoney(avgMarketPrice)}. Fiyatla rekabet etmeniz mümkün değil.`;
+
+        // Kupon stratejisi öner
+        // Liste fiyatını yüksek koy, kupon ile algılanan değeri artır
+        const suggestedListPrice = Math.ceil(breakEvenPrice * 1.6 / 10) * 10; // başa başın %60 üstü, 10'a yuvarla
+        const couponAmount = Math.ceil(suggestedListPrice * 0.10 / 5) * 5; // %10 civarı kupon, 5'e yuvarla
+        const profitAfterCoupon = suggestedListPrice - couponAmount - productCost - getShippingForPrice(suggestedListPrice) - (suggestedListPrice * costBreakdown.commissionRate / 100) - 13.80;
+
+        strategy.suggestedListPrice = suggestedListPrice;
+        strategy.suggestedCoupon = couponAmount;
+
+        strategy.actions = [
+            {
+                icon: '🏷️',
+                title: 'Liste Fiyatı Yükselt',
+                text: `Ürünü ${formatMoney(suggestedListPrice)} olarak listeleyin`,
+                detail: 'Yüksek fiyat = kalite algısı'
+            },
+            {
+                icon: '🎟️',
+                title: 'İndirim Kuponu Ekle',
+                text: `${formatMoney(couponAmount)} değerinde kupon verin`,
+                detail: `Müşteri ${formatMoney(suggestedListPrice - couponAmount)} öder → Net kâr: ${formatMoney(profitAfterCoupon)}`
+            },
+            {
+                icon: '📦',
+                title: 'Değer Odaklı Sat',
+                text: 'Kaliteli ürün fotoğrafları ve detaylı açıklama ile farkınızı ortaya koyun',
+                detail: 'Ucuz değil, değerli ürün konumlandırması'
+            },
+            {
+                icon: '⭐',
+                title: 'Yorum Topla',
+                text: 'İlk 10-20 siparişte müşteri memnuniyetine odaklanın',
+                detail: 'Yüksek puan = daha fazla satış, fiyat direnci kırılır'
+            }
+        ];
+    } else if (currentProfit < 0) {
+        // DURUM: Mevcut fiyattan zarar ediliyor
+        strategy.type = 'losing-money';
+        strategy.canCompete = false;
+        strategy.title = '🔴 Mevcut Fiyattan Zarar Ediyorsunuz!';
+        strategy.description = `Mevcut fiyat ${formatMoney(currentPrice)} ile satış başına ${formatMoney(Math.abs(currentProfit))} zarar ediyorsunuz. Minimum ${formatMoney(breakEvenPrice)} olmalı.`;
+
+        const safePrice = Math.ceil(breakEvenPrice * 1.15 / 5) * 5; // %15 kâr marjı, 5'e yuvarla
+        const safePriceProfit = safePrice - productCost - getShippingForPrice(safePrice) - (safePrice * costBreakdown.commissionRate / 100) - 13.80;
+
+        strategy.actions = [
+            {
+                icon: '📈',
+                title: 'Fiyat Artır',
+                text: `Fiyatı en az ${formatMoney(breakEvenPrice)} yapın (başa baş)`,
+                detail: `Önerilen: ${formatMoney(safePrice)} → Net kâr: ${formatMoney(safePriceProfit)}`
+            },
+            {
+                icon: '🔍',
+                title: 'Maliyet Düşür',
+                text: 'Tedarikçi fiyatını gözden geçirin',
+                detail: `Mevcut ürün maliyeti: ${formatMoney(productCost)}`
+            }
+        ];
+    } else {
+        // DURUM: Normal — kârlı satış
+        strategy.type = 'normal';
+        strategy.canCompete = true;
+        strategy.title = '✅ Kârlı Satış';
+
+        const profitMargin = currentPrice > 0 ? Math.round((currentProfit / currentPrice) * 100) : 0;
+        strategy.description = `Satış başına ${formatMoney(currentProfit)} kâr (%${profitMargin} marj). `;
+
+        if (profitMargin < 10) {
+            strategy.description += 'Kâr marjı düşük, fiyat artışı düşünün.';
+        } else if (profitMargin > 30) {
+            strategy.description += 'Kâr marjı iyi durumda.';
+        } else {
+            strategy.description += 'Kâr marjı makul seviyede.';
+        }
+    }
+
+    return strategy;
+}
+
+function getShippingForPrice(price) {
+    if (price <= 149.99) return 58.50;
+    if (price <= 299.99) return 95.50;
+    if (price <= 399.99) return 110;
+    return 130;
 }
 
 function formatMoney(val) {
@@ -805,112 +966,6 @@ router.post('/costs/bulk', (req, res) => {
 
 router.get('/costs', (req, res) => {
     res.json({ success: true, costs: productCosts });
-});
-
-// ========== TREND KEŞİF ==========
-
-router.get('/trend-discovery', async (req, res) => {
-    try {
-        const { query } = req.query;
-        
-        // Popüler/trend arama terimleri
-        const trendQueries = query ? [query] : [
-            'çok satan ürünler', 'trend ürünler', 'indirimli ürünler',
-            'ev dekorasyon', 'mutfak gereçleri', 'organik ürünler',
-            'hediye', 'aksesuar', 'teknoloji'
-        ];
-        
-        // Her arama terimi için Trendyol'dan veri çek
-        const results = [];
-        
-        if (query) {
-            // Tek bir arama terimi ile arama yap
-            const searchResult = await trendyolSearch.searchProducts(query, 10);
-            const suggestions = trendyolSearch.extractKeywordsFromProducts(searchResult.products || [], query);
-
-            results.push({
-                query: query,
-                products: searchResult.products || [],
-                totalCount: searchResult.totalCount || 0,
-                suggestions: suggestions || []
-            });
-        } else {
-            // Birden fazla trend arama
-            const searchPromises = trendQueries.slice(0, 5).map(async q => {
-                try {
-                    const searchResult = await trendyolSearch.searchProducts(q, 5);
-                    const suggestions = trendyolSearch.extractKeywordsFromProducts(searchResult.products || [], q);
-                    return {
-                        query: q,
-                        products: searchResult.products || [],
-                        totalCount: searchResult.totalCount || 0,
-                        suggestions: suggestions || []
-                    };
-                } catch (err) {
-                    return { query: q, products: [], totalCount: 0, suggestions: [] };
-                }
-            });
-            
-            const searchResults = await Promise.all(searchPromises);
-            results.push(...searchResults);
-        }
-        
-        // AI trend analizi (opsiyonel)
-        let aiTrendAnalysis = null;
-        if (geminiAI.isConfigured() && query) {
-            try {
-                const topProducts = results[0]?.products?.slice(0, 5) || [];
-                const productSummary = topProducts.map(p => 
-                    `${p.name} - ${p.brand} - ₺${p.price} - ⭐${p.ratingScore}`
-                ).join('\n');
-                
-                const prompt = `Trendyol'da "${query}" aramasının ilk 5 sonucu:
-${productSummary}
-
-Bu verilerden yola çıkarak kısaca analiz et (Türkçe, 3-4 cümle):
-1. Bu kategoride hangi fiyat aralığı başarılı?
-2. Bu ürünlere talep ne durumda?
-3. Yeni satıcılar için fırsat var mı?`;
-                
-                const response = await require('axios').post(
-                    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-                    { contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 300 } },
-                    { timeout: 15000, headers: { 'Content-Type': 'application/json' } }
-                );
-                aiTrendAnalysis = response.data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
-            } catch (err) {
-                console.error('AI trend analiz hatasi:', err.message);
-            }
-        }
-        
-        res.json({
-            success: true,
-            data: {
-                results,
-                aiTrendAnalysis,
-                aiEnabled: geminiAI.isConfigured(),
-                searchedAt: new Date().toISOString()
-            }
-        });
-    } catch (error) {
-        console.error('Trend kesif hatasi:', error.message);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// ========== TREND ARAMA ÖNERİLERİ ==========
-
-router.get('/search-suggest', async (req, res) => {
-    try {
-        const { q } = req.query;
-        if (!q || q.length < 2) return res.json({ success: true, data: [] });
-
-        const searchResult = await trendyolSearch.searchProducts(q, 10);
-        const suggestions = trendyolSearch.extractKeywordsFromProducts(searchResult.products || [], q);
-        res.json({ success: true, data: suggestions });
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
 });
 
 // ========== AYARLAR ==========

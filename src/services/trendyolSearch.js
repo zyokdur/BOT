@@ -132,8 +132,9 @@ function extractKeywordsFromProducts(products, originalQuery) {
 
 /**
  * Bir ürün başlığından arama yaparak Trendyol'daki rakipleri bul
+ * En az 4, en fazla 10 rakip — tercihen yorum/puan sahibi olanlar öncelikli
  */
-async function findCompetitorsFromSearch(productTitle, categoryName, limit = 5) {
+async function findCompetitorsFromSearch(productTitle, categoryName, limit = 10) {
     if (!productTitle) return { products: [], keywords: [], searchQuery: '' };
 
     // Başlıktan anlamlı arama terimi oluştur
@@ -147,11 +148,31 @@ async function findCompetitorsFromSearch(productTitle, categoryName, limit = 5) 
     // En anlamlı 3-4 kelimeyi seç
     const searchTerms = titleWords.slice(0, 4).join(' ');
 
-    // Arama yap
-    const searchResult = await searchProducts(searchTerms, Math.max(limit, 10));
+    // Arama yap — daha fazla sonuç al (20) böylece puanlı olanları filtreleyebiliriz
+    const searchResult = await searchProducts(searchTerms, 20);
+
+    // Puanlı/yorumlu rakipleri önceliklendir
+    const allProducts = searchResult.products || [];
+    const ratedProducts = allProducts.filter(p => p.ratingScore > 0 && p.ratingCount > 0);
+    const unratedProducts = allProducts.filter(p => !p.ratingScore || !p.ratingCount);
+
+    // Önce puanlı olanlar, sonra puansızlar — toplam 4-10 arası
+    let selectedProducts = [];
+    // Puanlı ürünleri puanına göre sırala (en yüksekten düşüğe)
+    ratedProducts.sort((a, b) => (b.ratingScore * b.ratingCount) - (a.ratingScore * a.ratingCount));
+    selectedProducts.push(...ratedProducts.slice(0, limit));
+    
+    // Eğer 4'ten az puanlı varsa, puansızlardan tamamla
+    if (selectedProducts.length < 4) {
+        const needed = Math.min(4 - selectedProducts.length, unratedProducts.length);
+        selectedProducts.push(...unratedProducts.slice(0, needed));
+    }
+
+    // Maximum limit'e kırp
+    selectedProducts = selectedProducts.slice(0, limit);
 
     // Arama sonuçlarından anahtar kelime önerileri çıkar
-    const keywords = extractKeywordsFromProducts(searchResult.products, searchTerms);
+    const keywords = extractKeywordsFromProducts(allProducts, searchTerms);
 
     // Ek arama: Kategori adıyla da arama yap
     let categoryKeywords = [];
@@ -171,10 +192,12 @@ async function findCompetitorsFromSearch(productTitle, categoryName, limit = 5) 
     const allKeywords = [...new Set([...keywords, ...categoryKeywords])].slice(0, 20);
 
     return {
-        products: searchResult.products.slice(0, limit),
+        products: selectedProducts,
         totalCount: searchResult.totalCount || 0,
         keywords: allKeywords,
-        searchQuery: searchTerms
+        searchQuery: searchTerms,
+        ratedCount: ratedProducts.length,
+        totalSearched: allProducts.length
     };
 }
 
